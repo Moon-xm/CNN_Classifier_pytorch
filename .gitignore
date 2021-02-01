@@ -35,6 +35,7 @@ MANIFEST
 # dataset
 dataset/MNIST
 dataset/CIFAR10
+data/sgns.sogou.char
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
