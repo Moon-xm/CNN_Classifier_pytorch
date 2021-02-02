@@ -86,8 +86,8 @@ def extract_vocab_tensor(config):  # 提取vocab内的预训练词向量
                         emb = [float(x) for x in lin[1:config.embedding_dim+1]]  # 取出对应词向量
                         embeddings[idx] = np.asarray(emb, dtype='float')
                 pretrain_f.close()
-                np.savez_compressed(vocab_tensor_path, embeddings=embeddings)  # embedding 是数组名
-                embedding_pretrained = embeddings
+                np.savez_compressed(vocab_tensor_path, embeddings=embeddings)  # embeddings 是数组名
+                embedding_pretrained = embeddings.astype('float32')
     return embedding_pretrained
 
 def build_dataset(config):
@@ -112,7 +112,7 @@ def build_dataset(config):
     if os.path.exists(config.vocab_path):  # 加载词典
         vocab = pickle.load(open(config.vocab_path, 'rb'))
     else:
-        vocab = build_vocab(config.train_path)  # 以训练数据构建词典
+        vocab = build_vocab(config.train_path)  # 用训练数据构建词典
         with open(config.vocab_path,'wb') as f:
             pickle.dump(vocab, f)  # 存储每个字及对应索引的字典 eg：我：56  vocab['我’]=56
     config.vocab_len = len(vocab)
@@ -120,20 +120,23 @@ def build_dataset(config):
 
     train_data = Mydataset(config.train_path, config, vocab)
     dev_data = Mydataset(config.dev_path, config, vocab)
-    test_data = Mydataset(config.test_path, config, vocab)
     train_loader = DataLoader(dataset=train_data,
                               batch_size=config.batch_size,
                               shuffle=True,
-                              num_workers=0)
+                              num_workers=config.num_workers)
     dev_loader = DataLoader(dataset=dev_data,
                             batch_size=config.batch_size,
                             shuffle=False,
-                            num_workers=0)
-    test_loader = DataLoader(dataset=test_data,
-                              batch_size=config.batch_size,
-                              shuffle=False,
-                              num_workers=0)
-    config.embedding_pretrained = torch.tensor(extract_vocab_tensor(config))  # 构建vocab内的词嵌入数组
+                            num_workers=config.num_workers)
+    if os.path.exists(config.test_path):
+        test_data = Mydataset(config.test_path, config, vocab)
+        test_loader = DataLoader(dataset=test_data,
+                                  batch_size=config.batch_size,
+                                  shuffle=False,
+                                  num_workers=config.num_workers)
+    else:  # 若无测试数据则加载验证集进行最终测试
+        test_loader = dev_loader
+    config.embedding_pretrained = torch.tensor(extract_vocab_tensor(config))  # 构建vocab内的词嵌入矩阵
 
     return train_loader, dev_loader, test_loader
 
