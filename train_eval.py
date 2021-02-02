@@ -6,8 +6,8 @@ import torch.optim as optim
 import time
 from datetime import timedelta
 import numpy as np
-import matplotlib.pyplot as plt
 from sklearn import metrics
+# import matplotlib.pyplot as plt
 
 
 def train_test(config, model, train_loader, dev_loader, test_loader):
@@ -20,7 +20,7 @@ def train_test(config, model, train_loader, dev_loader, test_loader):
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
 
     create_dir_not_exists(config.model_save_dir)
-    create_dir_not_exists(config.plot_save_dir)
+    # create_dir_not_exists(config.plot_save_dir)
     if os.path.exists(config.model_save_name):  # 存在则加载模型 并继续训练
         ckpt = torch.load(config.model_save_name)
         model.load_state_dict(ckpt['model'])
@@ -35,9 +35,10 @@ def train_test(config, model, train_loader, dev_loader, test_loader):
         max_acc = float('-inf')  # 负无穷
         dev_acc_ls = []
         best_epoch = start_epoch
-        print('Start training on epoch 0')
-    for epoch in range(start_epoch + 1, config.num_epoch + 1):
+        print('Start training on epoch 1...')
+    for epoch in range(start_epoch + 1, config.num_epochs + 1):
         # train and evaluate
+        print('Epoch [{}/{}]'.format(epoch, config.num_epochs))
         for i, data in enumerate(train_loader):
             model.train()  # 开启dropout和BatchNormal
             x, labels = data  # x[0] - 句子对应索引组成的数组 x[1] - 句子长度组成的数组
@@ -47,14 +48,14 @@ def train_test(config, model, train_loader, dev_loader, test_loader):
             loss.backward()  # backward
             optimizer.step()  # update
             if (i + 1) % 100 == 0:
-                # 对训练集（下方2行）和测试集（调用eval）进行评测  100个batch_size进行一次输出
-                predict_labels = torch.max(predict, dim=1)[1].numpy()
-                true = labels.data
+                # 对训练集（下方4行）和测试集（调用eval）进行评测  100个batch_size进行一次输出
+                predict_labels = torch.max(predict, dim=1)[1].cpu().numpy()  # 如果在gpu上训练必须先转到CPU内
+                true = labels.data.cpu()
                 train_acc = metrics.accuracy_score(true, predict_labels)
                 dev_acc, dev_loss = evaluate(config, dev_loader, model, criterion)
                 if dev_acc > max_acc:  # 存储最佳acc模型并存储acc图像
                     max_acc = dev_acc
-                    best_epoch = epoch
+                    best_epoch = epoch  # 记录最佳轮数
                     state = {'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': epoch,'dev_acc': dev_acc, 'dev_acc_ls': dev_acc_ls}
                     torch.save(state, config.model_save_name)
                     improve = '*'  # 在有提升的结果后面加上*标注
@@ -64,19 +65,20 @@ def train_test(config, model, train_loader, dev_loader, test_loader):
                       ' Train acc: {2:>6.2%}, Val loss: {3:>5.2}, Val acc: {4:>6.2%}, Time: {5} {6}'
                 print(msg.format(i + 1, loss.item(), train_acc, dev_loss, dev_acc, time_since(start), improve))
 
-        dev_acc, dev_loss = evaluate(config, dev_loader, model, criterion)
-        dev_acc_ls.append(dev_acc)
-        epoch_np = np.arange(1, epoch + 1, 1)  # 绘制accuracy图像
-        acc_np = np.array(dev_acc_ls)
-        plt.plot(epoch_np, acc_np)
-        plt.xlabel('Epoch')
-        plt.ylabel('Accuracy')
-        plt.grid()
-        plt.savefig('result/Accuracy.png')
-        print('EPOCH: {}/{}, dev loss: {:.4f}, dev acc: {:.2f}%, Time usage: {}'.format(
-            epoch, config.num_epoch, dev_loss, dev_acc * 100, time_since(start)))
+        # dev_acc, dev_loss = evaluate(config, dev_loader, model, criterion)  # 绘制accuracy图像
+        # dev_acc_ls.append(dev_acc)
+        # epoch_np = np.arange(1, epoch + 1, 1)
+        # acc_np = np.array(dev_acc_ls)
+        # plt.plot(epoch_np, acc_np)
+        # plt.xlabel('Epoch')
+        # plt.ylabel('Accuracy')
+        # plt.grid()
+        # plt.savefig('result/Accuracy.png')
         scheduler.step()  # lr衰减
-    print('Best model at epoch {}, del acc: {:.2f}%, '.format(best_epoch, max_acc * 100))
+        if epoch - best_epoch >= config.require_improvement:
+            print(f'No optimization for {config.require_improvement} epoch, auto-stopping...')
+            break
+    print('Best model at epoch {}, dev acc: {:.2f}%, '.format(best_epoch, max_acc * 100))
     test(config, model, test_loader, criterion)  # 全程只进行一次测试
     print('Time usage:', time_since(start))
 
@@ -91,7 +93,8 @@ def evaluate(config,data_loader, model, criterion, test=False):
             predict = model(x)  # forward
             loss = criterion(predict, labels)
             loss_total += loss
-            predict_labels = torch.max(predict, dim=1)[1].numpy()  # ???
+            labels = labels.data.cpu().numpy()
+            predict_labels = torch.max(predict, dim=1)[1].cpu().numpy()  # ???
             labels_all = np.append(labels_all, labels)
             predict_all = np.append(predict_all, predict_labels)
     acc = metrics.accuracy_score(labels_all, predict_all)
@@ -100,8 +103,8 @@ def evaluate(config,data_loader, model, criterion, test=False):
         report = metrics.classification_report(labels_all, predict_all,
                                                target_names=config.class_ls, digits=4)  # 包含标签索引  浮点值位数
         confusion = metrics.confusion_matrix(labels_all, predict_all)
-        msg = 'Test loss: {0:5>2}, Test acc: {1:6.2%}'
-        print(msg.format((loss_total/len(data_loader), acc)))
+        msg = 'Test loss: {0:>5.2}, Test acc: {1:6.2%}'
+        print(msg.format((loss_total/len(data_loader)), acc))
         print('Precision, Recall and F1-Score:')
         print(report)
         print('Confusion Matrix:')
@@ -137,5 +140,5 @@ def time_since(since):
         2021-2-1 09:17:58
     """
     time_dif = time.time() - since
-    time_use = timedelta(seconds=int(round(time_dif)))
-    return time_use
+    time_usage = timedelta(seconds=int(round(time_dif)))
+    return time_usage

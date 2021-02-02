@@ -5,8 +5,8 @@ from models.TextCNN import config, Model  # 所有参数存在这
 
 if __name__ == '__main__':
     print('Loading data...')
-    config = config()
-    train_loader, dev_loader, test_loader = build_dataset(config)  # 构造可用于模型输入的训练、验证、测试数据 并返回训练集词典大小作为embedding层的参数
+    config = config()  # 实例化各参数
+    train_loader, dev_loader, test_loader = build_dataset(config)  # 构造可用于模型输入的训练、验证、测试数据
     print('Loading model...')
     model = Model(config).to(config.device)
     print(model)

@@ -8,7 +8,7 @@ import numpy as np
 
 MAX_VOCAB_SIZE = 10000  # 词表长度限制
 UNK, PAD = '<UNK>', '<PAD>'  # 未知字 padding符号
-MIN_FREQ = 1
+MIN_FREQ = 1  # 出现频率大于该参数的字才放入词典
 
 
 def build_vocab(file_path):  # 构建词典（默认是字符级）
@@ -32,10 +32,10 @@ def build_vocab(file_path):  # 构建词典（默认是字符级）
     vocab_dic = {}
     with open(file_path, 'r', encoding='utf-8') as f:
         for line in tqdm(f):
-            l = line.strip()  # 去除头尾的空格 换行符 制表符
-            if not l:
+            lin = line.strip()  # 去除头尾的空格 换行符 制表符
+            if not lin:
                 continue  # 空行跳过
-            content = l.split('\t')[0]  # l: 一段文字\t类别对应的数字
+            content = lin.split('\t')[0]  # lin: 一段文字\t类别对应的数字
             tokenizer = lambda x: [y for y in x]  # 单字划分，char-level
             # tokenizer = lambda x: x.split(' ')  # 以空格隔开，word-level  分好词的语料
             for word in tokenizer(content):
@@ -78,12 +78,12 @@ def extract_vocab_tensor(config):  # 提取vocab内的预训练词向量
                 pretrain_f = open(config.pretrain_dir, 'r', encoding='utf-8')
                 embeddings = np.random.rand(len(word_to_id), config.embedding_dim)
                 for i, line in enumerate(pretrain_f.readlines()):
-                    # if i == 0:  # 若第一行是标题，则跳过 部分预训练模型第一行是词数和词嵌入维度
-                    #     continue
-                    l = line.strip().split(' ')
-                    if l[0] in word_to_id:
-                        idx = word_to_id[l[0]]
-                        emb = [float(x) for x in l[1:config.embedding_dim+1]]  # 取出对应词向量
+                    if i == 0:  # 若第一行是标题，则跳过 部分预训练模型第一行是词数和词嵌入维度
+                        continue
+                    lin = line.strip().split(' ')
+                    if lin[0] in word_to_id:
+                        idx = word_to_id[lin[0]]
+                        emb = [float(x) for x in lin[1:config.embedding_dim+1]]  # 取出对应词向量
                         embeddings[idx] = np.asarray(emb, dtype='float')
                 pretrain_f.close()
                 np.savez_compressed(vocab_tensor_path, embeddings=embeddings)  # embedding 是数组名
@@ -178,10 +178,10 @@ class Mydataset(Dataset):
         contents = []
         with open(self.filepath,'r',encoding='utf-8') as f:
             for line in tqdm(f):
-                l = line.strip()
-                if not l:
+                lin = line.strip()
+                if not lin:
                     continue
-                content, label = l.split('\t')
+                content, label = lin.split('\t')
                 words_line = []
                 tokenizer = lambda x: [y for y in x]  # char-lever
                 # tokenizer = lambda x: x.split(' ')  # word-level
